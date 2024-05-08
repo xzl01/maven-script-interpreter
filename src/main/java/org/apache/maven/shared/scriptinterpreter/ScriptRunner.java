@@ -1,5 +1,3 @@
-package org.apache.maven.shared.scriptinterpreter;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -9,7 +7,7 @@ package org.apache.maven.shared.scriptinterpreter;
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *  http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -18,14 +16,12 @@ package org.apache.maven.shared.scriptinterpreter;
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.apache.maven.plugin.logging.Log;
-import org.apache.maven.shared.utils.io.FileUtils;
-import org.apache.maven.shared.utils.StringUtils;
+package org.apache.maven.shared.scriptinterpreter;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -33,19 +29,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.apache.commons.io.FilenameUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Runs pre-/post-build hook scripts.
  *
  * @author Benjamin Bentmann
- * @version $Id: ScriptRunner.java 1797598 2017-06-04 18:41:18Z hboutemy $
  */
-public class ScriptRunner
-{
+public class ScriptRunner {
 
-    /**
-     * The mojo logger to print diagnostic to, never <code>null</code>.
-     */
-    private Log log;
+    private static final Logger LOG = LoggerFactory.getLogger(ScriptRunner.class);
 
     /**
      * The supported script interpreters, indexed by the lower-case file extension of their associated script files,
@@ -69,48 +64,34 @@ public class ScriptRunner
     private String encoding;
 
     /**
-     * Creates a new script runner.
-     *
-     * @param log The mojo logger to print diagnostic to, must not be <code>null</code>.
+     * Creates a new script runner with BSH and Groovy interpreters.
      */
-    public ScriptRunner( Log log )
-    {
-        if ( log == null )
-        {
-            throw new IllegalArgumentException( "missing logger" );
-        }
-        this.log = log;
-        scriptInterpreters = new LinkedHashMap<String, ScriptInterpreter>();
-        scriptInterpreters.put( "bsh", new BeanShellScriptInterpreter() );
-        scriptInterpreters.put( "groovy", new GroovyScriptInterpreter() );
-        globalVariables = new HashMap<String, Object>();
-        classPath = new ArrayList<String>();
-    }
-
-    public void addScriptInterpreter( String id, ScriptInterpreter scriptInterpreter )
-    {
-        scriptInterpreters.put( id, scriptInterpreter );
+    public ScriptRunner() {
+        scriptInterpreters = new LinkedHashMap<>();
+        scriptInterpreters.put("bsh", new BeanShellScriptInterpreter());
+        scriptInterpreters.put("groovy", new GroovyScriptInterpreter());
+        globalVariables = new HashMap<>();
+        classPath = new ArrayList<>();
     }
 
     /**
-     * Gets the mojo logger.
+     * Add new script Interpreter
      *
-     * @return The mojo logger, never <code>null</code>.
+     * @param id The Id of interpreter
+     * @param scriptInterpreter the Script Interpreter implementation
      */
-    private Log getLog()
-    {
-        return log;
+    public void addScriptInterpreter(String id, ScriptInterpreter scriptInterpreter) {
+        scriptInterpreters.put(id, scriptInterpreter);
     }
 
     /**
      * Sets a global variable for the script interpreter.
      *
-     * @param name  The name of the variable, must not be <code>null</code>.
+     * @param name The name of the variable, must not be <code>null</code>.
      * @param value The value of the variable, may be <code>null</code>.
      */
-    public void setGlobalVariable( String name, Object value )
-    {
-        this.globalVariables.put( name, value );
+    public void setGlobalVariable(String name, Object value) {
+        this.globalVariables.put(name, value);
     }
 
     /**
@@ -118,12 +99,11 @@ public class ScriptRunner
      * will not affect the scripts.
      *
      * @param classPath The additional class path for the script interpreter, may be <code>null</code> or empty if only
-     *            the plugin realm should be used for the script evaluation. If specified, this class path will precede
-     *            the artifacts from the plugin class path.
+     * the plugin realm should be used for the script evaluation. If specified, this class path will precede the
+     * artifacts from the plugin class path.
      */
-    public void setClassPath( List<String> classPath )
-    {
-        this.classPath = ( classPath != null ) ? new ArrayList<String>( classPath ) : new ArrayList<String>();
+    public void setClassPath(List<String> classPath) {
+        this.classPath = (classPath != null) ? new ArrayList<>(classPath) : new ArrayList<>();
     }
 
     /**
@@ -132,9 +112,8 @@ public class ScriptRunner
      * @param encoding The file encoding of the hook scripts, may be <code>null</code> or empty to use the platform's
      *                 default encoding.
      */
-    public void setScriptEncoding( String encoding )
-    {
-        this.encoding = StringUtils.isNotEmpty( encoding ) ? encoding : null;
+    public void setScriptEncoding(String encoding) {
+        this.encoding = (encoding != null && encoding.length() > 0) ? encoding : null;
     }
 
     /**
@@ -146,38 +125,39 @@ public class ScriptRunner
      *            to skip the script execution and may not have extensions (resolution will search).
      * @param context The key-value storage used to share information between hook scripts, may be <code>null</code>.
      * @param logger The logger to redirect the script output to, may be <code>null</code> to use stdout/stderr.
-     * @param stage The stage of the build job the script is invoked in, must not be <code>null</code>. This is for
-     *            logging purpose only.
-     * @param failOnException If <code>true</code> and the script throws an exception, then a
-     *            {@link RunFailureException} will be thrown, otherwise a {@link RunErrorException} will be thrown on
-     *            script exception.
      * @throws IOException If an I/O error occurred while reading the script file.
-     * @throws RunFailureException If the script did not return <code>true</code> of threw an exception.
+     * @throws ScriptException If the script did not return <code>true</code> of threw an exception.
      */
-    public void run( final String scriptDescription, final File basedir, final String relativeScriptPath,
-                     final Map<String, ? extends Object> context, final ExecutionLogger logger, String stage,
-                     boolean failOnException )
-        throws IOException, RunFailureException
-    {
-        if ( relativeScriptPath == null )
-        {
-            getLog().debug( scriptDescription + ": relativeScriptPath is null, not executing script" );
+    public void run(
+            final String scriptDescription,
+            final File basedir,
+            final String relativeScriptPath,
+            final Map<String, ?> context,
+            final ExecutionLogger logger)
+            throws IOException, ScriptException {
+        if (relativeScriptPath == null) {
+            LOG.debug("{}: relativeScriptPath is null, not executing script", scriptDescription);
             return;
         }
 
-        final File scriptFile = resolveScript( new File( basedir, relativeScriptPath ) );
+        final File scriptFile = resolveScript(new File(basedir, relativeScriptPath));
 
-        if ( !scriptFile.exists() )
-        {
-            getLog().debug( scriptDescription + ": no script '" + relativeScriptPath + "' found in directory "
-                + basedir.getAbsolutePath() );
+        if (!scriptFile.exists()) {
+            LOG.debug(
+                    "{} : no script '{}' found in directory {}",
+                    scriptDescription,
+                    relativeScriptPath,
+                    basedir.getAbsolutePath());
             return;
         }
 
-        getLog().info( "run " + scriptDescription + ' ' + relativeScriptPath + '.'
-            + FileUtils.extension( scriptFile.getAbsolutePath() ) );
+        LOG.info(
+                "run {} {}.{}",
+                scriptDescription,
+                relativeScriptPath,
+                FilenameUtils.getExtension(scriptFile.getAbsolutePath()));
 
-        executeRun( scriptDescription, scriptFile, context, logger, stage, failOnException );
+        executeRun(scriptDescription, scriptFile, context, logger);
     }
 
     /**
@@ -187,104 +167,73 @@ public class ScriptRunner
      * @param scriptFile The path to the script, may be <code>null</code> to skip the script execution.
      * @param context The key-value storage used to share information between hook scripts, may be <code>null</code>.
      * @param logger The logger to redirect the script output to, may be <code>null</code> to use stdout/stderr.
-     * @param stage The stage of the build job the script is invoked in, must not be <code>null</code>. This is for
-     *            logging purpose only.
-     * @param failOnException If <code>true</code> and the script throws an exception, then a
-     *            {@link RunFailureException} will be thrown, otherwise a {@link RunErrorException} will be thrown on
-     *            script exception.
-     * @throws IOException If an I/O error occurred while reading the script file.
-     * @throws RunFailureException If the script did not return <code>true</code> of threw an exception.
+     * @throws IOException         If an I/O error occurred while reading the script file.
+     * @throws ScriptException If the script did not return <code>true</code> of threw an exception.
      */
-    public void run( final String scriptDescription, File scriptFile, final Map<String, ? extends Object> context,
-                     final ExecutionLogger logger, String stage, boolean failOnException )
-        throws IOException, RunFailureException
-    {
+    public void run(
+            final String scriptDescription, File scriptFile, final Map<String, ?> context, final ExecutionLogger logger)
+            throws IOException, ScriptException {
 
-        if ( !scriptFile.exists() )
-        {
-            getLog().debug( scriptDescription + ": script file not found in directory "
-                + scriptFile.getAbsolutePath() );
+        if (!scriptFile.exists()) {
+            LOG.debug("{} : script file not found in directory {}", scriptDescription, scriptFile.getAbsolutePath());
             return;
         }
 
-        getLog().info( "run " + scriptDescription + ' ' + scriptFile.getAbsolutePath() );
+        LOG.info("run {} {}", scriptDescription, scriptFile.getAbsolutePath());
 
-        executeRun( scriptDescription, scriptFile, context, logger, stage, failOnException );
+        executeRun(scriptDescription, scriptFile, context, logger);
     }
 
-    private void executeRun( final String scriptDescription, File scriptFile,
-                             final Map<String, ? extends Object> context, final ExecutionLogger logger, String stage,
-                             boolean failOnException )
-        throws IOException, RunFailureException
-    {
-        Map<String, Object> globalVariables = new HashMap<String, Object>( this.globalVariables );
-        globalVariables.put( "basedir", scriptFile.getParentFile() );
-        globalVariables.put( "context", context );
-
-        ScriptInterpreter interpreter = getInterpreter( scriptFile );
-        if ( getLog().isDebugEnabled() )
-        {
+    private void executeRun(
+            final String scriptDescription, File scriptFile, final Map<String, ?> context, final ExecutionLogger logger)
+            throws IOException, ScriptException {
+        ScriptInterpreter interpreter = getInterpreter(scriptFile);
+        if (LOG.isDebugEnabled()) {
             String name = interpreter.getClass().getName();
-            name = name.substring( name.lastIndexOf( '.' ) + 1 );
-            getLog().debug( "Running script with " + name + ": " + scriptFile );
+            name = name.substring(name.lastIndexOf('.') + 1);
+            LOG.debug("Running script with {} :{}", name, scriptFile);
         }
 
         String script;
-        try
-        {
-            script = FileUtils.fileRead( scriptFile, encoding );
-        }
-        catch ( IOException e )
-        {
+        try {
+            byte[] bytes = Files.readAllBytes(scriptFile.toPath());
+            if (encoding != null) {
+                script = new String(bytes, encoding);
+            } else {
+                script = new String(bytes);
+            }
+        } catch (IOException e) {
             String errorMessage =
-                "error reading " + scriptDescription + " " + scriptFile.getPath() + ", " + e.getMessage();
-            IOException ioException = new IOException( errorMessage );
-            ioException.initCause( e );
-            throw ioException;
+                    "error reading " + scriptDescription + " " + scriptFile.getPath() + ", " + e.getMessage();
+            throw new IOException(errorMessage, e);
         }
 
         Object result;
-        try
-        {
-            if ( logger != null )
-            {
-                logger.consumeLine( "Running " + scriptDescription + ": " + scriptFile );
+        try {
+            if (logger != null) {
+                logger.consumeLine("Running " + scriptDescription + ": " + scriptFile);
             }
 
-            PrintStream out = ( logger != null ) ? logger.getPrintStream() : null;
+            PrintStream out = (logger != null) ? logger.getPrintStream() : null;
 
-            result = interpreter.evaluateScript( script, classPath, globalVariables, out );
-            if ( logger != null )
-            {
-                logger.consumeLine( "Finished " + scriptDescription + ": " + scriptFile );
+            Map<String, Object> scriptVariables = new HashMap<>(this.globalVariables);
+            scriptVariables.put("basedir", scriptFile.getParentFile());
+            scriptVariables.put("context", context);
+
+            result = interpreter.evaluateScript(script, classPath, scriptVariables, out);
+            if (logger != null) {
+                logger.consumeLine("Finished " + scriptDescription + ": " + scriptFile);
             }
-        }
-        catch ( ScriptEvaluationException e )
-        {
-            Throwable t = ( e.getCause() != null ) ? e.getCause() : e;
-            String msg = ( t.getMessage() != null ) ? t.getMessage() : t.toString();
-            if ( getLog().isDebugEnabled() )
-            {
-                String errorMessage = "Error evaluating " + scriptDescription + " " + scriptFile.getPath() + ", " + t;
-                getLog().debug( errorMessage, t );
+        } catch (ScriptEvaluationException e) {
+            Throwable t = (e.getCause() != null) ? e.getCause() : e;
+            if (logger != null) {
+                t.printStackTrace(logger.getPrintStream());
             }
-            if ( logger != null )
-            {
-                t.printStackTrace( logger.getPrintStream() );
-            }
-            if ( failOnException )
-            {
-                throw new RunFailureException( "The " + scriptDescription + " did not succeed. " + msg, stage );
-            }
-            else
-            {
-                throw new RunErrorException( "The " + scriptDescription + " did not succeed. " + msg, stage, t );
-            }
+            throw e;
         }
 
-        if ( !( result == null || Boolean.TRUE.equals( result ) || "true".equals( result ) ) )
-        {
-            throw new RunFailureException( "The " + scriptDescription + " returned " + result + ".", stage );
+        if (!(result == null || Boolean.parseBoolean(String.valueOf(result)))) {
+            throw new ScriptReturnException("The " + scriptDescription + " returned " + result + ".", result);
         }
     }
 
@@ -295,15 +244,11 @@ public class ScriptRunner
      * @param scriptFile The script file to resolve, may be <code>null</code>.
      * @return The effective path to the script file or <code>null</code> if the input was <code>null</code>.
      */
-    private File resolveScript( File scriptFile )
-    {
-        if ( scriptFile != null && !scriptFile.exists() )
-        {
-            for ( String ext : this.scriptInterpreters.keySet() )
-            {
-                File candidateFile = new File( scriptFile.getPath() + '.' + ext );
-                if ( candidateFile.exists() )
-                {
+    private File resolveScript(File scriptFile) {
+        if (scriptFile != null && !scriptFile.exists()) {
+            for (String ext : this.scriptInterpreters.keySet()) {
+                File candidateFile = new File(scriptFile.getPath() + '.' + ext);
+                if (candidateFile.exists()) {
                     scriptFile = candidateFile;
                     break;
                 }
@@ -320,15 +265,12 @@ public class ScriptRunner
      * @param scriptFile The script file for which to determine an interpreter, must not be <code>null</code>.
      * @return The script interpreter for the file, never <code>null</code>.
      */
-    private ScriptInterpreter getInterpreter( File scriptFile )
-    {
-        String ext = FileUtils.extension( scriptFile.getName() ).toLowerCase( Locale.ENGLISH );
-        ScriptInterpreter interpreter = scriptInterpreters.get( ext );
-        if ( interpreter == null )
-        {
-            interpreter = scriptInterpreters.get( "bsh" );
+    private ScriptInterpreter getInterpreter(File scriptFile) {
+        String ext = FilenameUtils.getExtension(scriptFile.getName()).toLowerCase(Locale.ENGLISH);
+        ScriptInterpreter interpreter = scriptInterpreters.get(ext);
+        if (interpreter == null) {
+            interpreter = scriptInterpreters.get("bsh");
         }
         return interpreter;
     }
-
 }

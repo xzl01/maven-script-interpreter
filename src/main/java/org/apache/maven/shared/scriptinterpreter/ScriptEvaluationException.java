@@ -1,5 +1,3 @@
-package org.apache.maven.shared.scriptinterpreter;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -9,7 +7,7 @@ package org.apache.maven.shared.scriptinterpreter;
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *  http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -18,17 +16,15 @@ package org.apache.maven.shared.scriptinterpreter;
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.maven.shared.scriptinterpreter;
 
 /**
  * Signals an error during parsing/evaluation of a script. This can either be a syntax error in the script itself or an
  * exception triggered by the methods it invoked.
- * 
+ *
  * @author Benjamin Bentmann
- * @version $Id: ScriptEvaluationException.java 1194928 2011-10-29 16:37:19Z olamy $
  */
-public class ScriptEvaluationException
-    extends Exception
-{
+public class ScriptEvaluationException extends ScriptException {
 
     /**
      * The serial version identifier for this class.
@@ -37,12 +33,21 @@ public class ScriptEvaluationException
 
     /**
      * Creates a new exception with the specified cause.
-     * 
+     *
      * @param cause The cause, may be <code>null</code>.
      */
-    public ScriptEvaluationException( Throwable cause )
-    {
-        super( cause );
+    ScriptEvaluationException(Throwable cause) {
+        super(cause);
     }
 
+    /**
+     * Creates a new exception with the specified message and cause.
+     *
+     * @param message The message, may be <code>null</code>.
+     * @param cause The cause, may be <code>null</code>.
+     * @since 1.3
+     */
+    public ScriptEvaluationException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

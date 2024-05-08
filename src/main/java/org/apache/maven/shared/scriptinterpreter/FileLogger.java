@@ -1,5 +1,3 @@
-package org.apache.maven.shared.scriptinterpreter;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -9,7 +7,7 @@ package org.apache.maven.shared.scriptinterpreter;
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *  http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -18,21 +16,19 @@ package org.apache.maven.shared.scriptinterpreter;
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.apache.maven.plugin.logging.Log;
-import org.apache.maven.shared.utils.io.IOUtil;
+package org.apache.maven.shared.scriptinterpreter;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 
 /**
- * @version $Id: FileLogger.java 1389141 2012-09-23 20:29:01Z hboutemy $
+ * <p>FileLogger class.</p>
+ *
  */
-public class FileLogger
-    implements ExecutionLogger
-{
+public class FileLogger implements ExecutionLogger, AutoCloseable {
 
     /**
      * The path to the log file.
@@ -45,118 +41,139 @@ public class FileLogger
     private PrintStream stream;
 
     /**
-     * A flag whether the output stream should be closed during finalization of this logger.
-     */
-    private boolean shouldFinalize = true;
-
-    /**
-     * The optional mojo logger to additionally write messages to, can be <code>null</code>.
-     */
-    private final Log log;
-
-    /**
      * Creates a new logger that writes to the specified file.
-     * 
-     * @param outputFile The path to the output file, must not be <code>null</code>.
+     *
+     * @param outputFile The path to the output file, if null all message will be discarded.
      * @throws java.io.IOException If the output file could not be created.
      */
-    public FileLogger( File outputFile )
-        throws IOException
-    {
-        this( outputFile, null );
+    public FileLogger(File outputFile) throws IOException {
+        this(outputFile, null);
     }
 
     /**
-     * Creates a new logger that writes to the specified file and optionally mirrors messages to the given mojo logger.
+     * Creates a new logger that writes to the specified file and optionally mirrors messages.
      *
-     * @param outputFile The path to the output file, must not be <code>null</code>.
-     * @param log The mojo logger to additionally output messages to, may be <code>null</code> if not used.
+     * @param outputFile The path to the output file, if null all message will be discarded.
+     * @param mirrorHandler The class which handle mirrored message, can be <code>null</code>.
      * @throws java.io.IOException If the output file could not be created.
      */
-    public FileLogger( File outputFile, Log log )
-        throws IOException
-    {
+    public FileLogger(File outputFile, FileLoggerMirrorHandler mirrorHandler) throws IOException {
         this.file = outputFile;
-        this.log = log;
 
-        outputFile.getParentFile().mkdirs();
-        stream = new PrintStream( new FileOutputStream( outputFile ) );
+        OutputStream outputStream;
 
-        Runnable finalizer = new Runnable()
-        {
-            public void run()
-            {
-                try
-                {
-                    finalize();
-                }
-                catch ( Throwable e )
-                {
-                    // ignore
-                }
-            }
-        };
+        if (outputFile != null) {
+            outputFile.getParentFile().mkdirs();
+            outputStream = new FileOutputStream(outputFile);
+        } else {
+            outputStream = new NullOutputStream();
+        }
 
-        Runtime.getRuntime().addShutdownHook( new Thread( finalizer ) );
+        if (mirrorHandler != null) {
+            stream = new PrintStream(new MirrorStreamWrapper(outputStream, mirrorHandler));
+        } else {
+            stream = new PrintStream(outputStream);
+        }
     }
 
     /**
      * Gets the path to the output file.
-     * 
+     *
      * @return The path to the output file, never <code>null</code>.
      */
-    public File getOutputFile()
-    {
+    public File getOutputFile() {
         return file;
     }
 
     /**
      * Gets the underlying stream used to write message to the log file.
-     * 
+     *
      * @return The underlying stream used to write message to the log file, never <code>null</code>.
      */
-    public PrintStream getPrintStream()
-    {
+    @Override
+    public PrintStream getPrintStream() {
         return stream;
     }
 
     /**
-     * Writes the specified line to the log file and optionally to the mojo logger.
-     * 
+     * Writes the specified line to the log file
+     * and invoke {@link FileLoggerMirrorHandler#consumeOutput(String)} if is given.
+     *
      * @param line The message to log.
      */
-    public void consumeLine( String line )
-    {
-        stream.println( line );
+    @Override
+    public void consumeLine(String line) {
+        stream.println(line);
         stream.flush();
-
-        if ( log != null )
-        {
-            log.info( line );
-        }
     }
 
     /**
      * Closes the underlying file stream.
      */
-    public void close()
-    {
-        if ( stream != null )
-        {
+    public void close() {
+        if (stream != null) {
             stream.flush();
+            stream.close();
+            stream = null;
         }
-
-        IOUtil.close( stream );
     }
 
-    /**
-     * Closes the underlying file stream.
-     */
-    protected void finalize()
-    {
-        if ( shouldFinalize )
-        {
-            close();
+    private static class MirrorStreamWrapper extends OutputStream {
+        private final OutputStream out;
+        private final FileLoggerMirrorHandler mirrorHandler;
+
+        private StringBuilder lineBuffer;
+
+        MirrorStreamWrapper(OutputStream outputStream, FileLoggerMirrorHandler mirrorHandler) {
+            this.out = outputStream;
+            this.mirrorHandler = mirrorHandler;
+            this.lineBuffer = new StringBuilder();
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            out.write(b);
+            lineBuffer.append((char) (b));
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+            lineBuffer.append(new String(b, off, len));
+        }
+
+        @Override
+        public void flush() throws IOException {
+            out.flush();
+
+            int len = lineBuffer.length();
+            if (len == 0) {
+                // nothing to log
+                return;
+            }
+
+            // remove line end for log
+            while (len > 0 && (lineBuffer.charAt(len - 1) == '\n' || lineBuffer.charAt(len - 1) == '\r')) {
+                len--;
+            }
+            lineBuffer.setLength(len);
+
+            mirrorHandler.consumeOutput(lineBuffer.toString());
+
+            // clear buffer
+            lineBuffer = new StringBuilder();
+        }
+    }
+
+    private static class NullOutputStream extends OutputStream {
+        @Override
+        public void write(int b) {
+            // do nothing
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) {
+            // do nothing
         }
     }
 }

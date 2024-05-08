@@ -16,23 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.maven.shared.scriptinterpreter;
 
-if ( !( basedir instanceof File ) )
-{
-    println "Global script variable not defined: basedir or not a File"
-    throw new RuntimeException("Global script variable not defined: basedir or not a File");
+/**
+ * Common errors during script running.
+ *
+ * @author Slawomir Jaranowski
+ * @since 1.3
+ */
+public class ScriptException extends Exception {
+    private static final long serialVersionUID = 4553276474852776472L;
+
+    /**
+     * Creates a new exception with the specified message and cause.
+     *
+     * @param message The message, may be <code>null</code>.
+     * @param cause The cause, may be <code>null</code>.
+     */
+    public ScriptException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
+    ScriptException(String message) {
+        super(message);
+    }
+
+    ScriptException(Throwable cause) {
+        super(cause);
+    }
 }
-def verify = new File( basedir, "verify.groovy" )
-assert (verify.exists())
-
-if ( !( context instanceof Map ) )
-{
-    println "Global script variable not defined: context or not a Map"
-    throw new RuntimeException("Global script variable not defined: context or not a Map");
-}
-
-System.out.println("foo="+context.get("foo"));
-
-if (binding.variables.containsKey("globalVar")) System.out.println("globalVar="+globalVar);
-
-return true

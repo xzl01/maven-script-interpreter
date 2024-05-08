@@ -1,3 +1,16 @@
+maven-script-interpreter (1.4-1) unstable; urgency=medium
+
+  * New upstream release
+    - Updated the maven-debian-helper rules
+    - Removed the dependency on libmaven-shared-utils-java
+  * Depend on libmaven-parent-java
+  * Standards-Version updated to 4.6.2
+  * Switch to debhelper level 13
+  * Use salsa.debian.org Vcs-* URLs
+  * Track and download the new releases from GitHub
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 10 Jan 2023 00:14:29 +0100
+
 maven-script-interpreter (1.2-1) unstable; urgency=medium
 
   * New upstream release

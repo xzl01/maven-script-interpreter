@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Maven Script Interpreter
-Source: https://maven.apache.org/shared/maven-script-interpreter/
+Source: https://github.com/apache/maven-script-interpreter
 
 Files: *
 Copyright: 2011-2012, The Apache Software Foundation

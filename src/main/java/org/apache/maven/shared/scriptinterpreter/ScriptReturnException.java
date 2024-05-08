@@ -18,25 +18,37 @@
  */
 package org.apache.maven.shared.scriptinterpreter;
 
-import java.io.PrintStream;
-
 /**
- * <p>ExecutionLogger interface.</p>
+ * Signals an invalid value returned from script execution.
  *
- * @author Olivier Lamy
+ * @author Slawomir Jaranowski
+ * @since 1.3
  */
-public interface ExecutionLogger {
+public class ScriptReturnException extends ScriptException {
+
+    private static final long serialVersionUID = -4705573157701206786L;
     /**
-     * The stream which will catch the output of the {@link org.apache.maven.shared.scriptinterpreter.ScriptRunner}.
-     *
-     * @return the output stream
+     * Result
      */
-    PrintStream getPrintStream();
+    private final Object result;
 
     /**
-     * Consume logging from this component.
+     * Creates a new exception with the specified message and result.
      *
-     * @param line the line to consume
+     * @param message The message, may be <code>null</code>.
+     * @param result The cause, may be <code>null</code>.
      */
-    void consumeLine(String line);
+    ScriptReturnException(String message, Object result) {
+        super(message);
+        this.result = result;
+    }
+
+    /**
+     * Retrieve result returned by script.
+     *
+     * @return script result.
+     */
+    public Object getResult() {
+        return result;
+    }
 }

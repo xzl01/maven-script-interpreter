@@ -40,81 +40,121 @@ ${project.name}
     </dependency>
 +---------
 
-* Interpret beanshell script
+  <<<maven-script-interpreter>>> has dependency only to core interpreters library,
+  all specific extensions should be added in your project.
+
+  For example, if you want to use {{{https://docs.groovy-lang.org/latest/html/documentation/grape.html}<<Grape>>}}
+  in a <<Groovy>> script, you must add a dependency to Ivy in your project or in the plugin that will invoke the script:
 
 +---------
+    <dependency>
+      <groupId>org.apache.ivy</groupId>
+      <artifactId>ivy</artifactId>
+      <version>...</version>
+    </dependency>
++---------
 
+* Using ScriptInterpreter
+
+** Interpret BeanShell script
+
++---------
     ScriptInterpreter interpreter = new BeanShellScriptInterpreter();
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     interpreter.evaluateScript( script content, extra classPath entries,
-                              Map<String, ? extends Object> globalVariables, new PrintStream( out ) );
-    out.toString() returns script output
-
+                                Map<String, ? extends Object> globalVariables, new PrintStream( out ) );
 +---------
 
-* Interpret a groovy script
+    <<<out.toString()>>> returns script output.
+
+** Interpret a Groovy script
 
 +---------
-
     ScriptInterpreter interpreter = new GroovyScriptInterpreter();
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     interpreter.evaluateScript( script content, extra classPath entries,
-                              Map<String, ? extends Object> globalVariables, new PrintStream( out ) );
-    out.toString() returns script output
-
+                                Map<String, ? extends Object> globalVariables, new PrintStream( out ) );
 +---------
+
+    <<<out.toString()>>> returns script output.
 
 * Using ScriptRunner
 
-  ScriptRunner class will detect the script file to run based on supported extensions (.bsh,.groovy).
+  <<<ScriptRunner>>> class will detect the script file to run based on supported extensions (<<<.bsh>>>, <<<.groovy>>>).
 
   This class will search in the provided directory the script with the provided fileName and the supported extensions.
 
-  See {{{./apidocs/org/apache/maven/shared/scriptinterpreter/ScriptRunner.html}javadoc}} for run method.
+  See {{{./apidocs/org/apache/maven/shared/scriptinterpreter/ScriptRunner.html}javadoc}} for <<<run(...)>>> methods.
 
 +---------
-    SystemStreamLog systemStreamLog = new SystemStreamLog();
-
-    ScriptRunner scriptRunner = new ScriptRunner( systemStreamLog );
+    ScriptRunner scriptRunner = new ScriptRunner();
     scriptRunner.run( "test", new File( "src/test/resources/bsh-test" ), "verify", buildContext(),
-                      new FileLogger( logFile ), "foo", true );
+                      new FileLogger( logFile ) );
++---------
+
+* Mirror output from script interpreter
+
+  In order to do something more with script output, eg. log by your application you must implement <<<FileLoggerMirrorHandler>>>
+
++---------
+class MyMirrorHandler implements FileLoggerMirrorHandler
+{
+    void consumeOutput( String message )
+    {
+        // this method is invoked every time when flush occurs on the underlying stream.
+    }
+}
++---------
+
+  Now use it:
+
++---------
+      ScriptRunner scriptRunner = new ScriptRunner();
+      scriptRunner.run( "test", new File( "src/test/resources/bsh-test" ), "verify", buildContext(),
+                        new FileLogger( logFile, new MyMirrorHandler() ) );
 +---------
 
 ** Global variables
 
   Your scripts will have by default two global variables:
 
-  * basedir: the base directory of your script
+  * <<<basedir>>>: the base directory of your script
 
-  * context: the build context (see below)
+  * <<<context>>>: the build context (see below)
 
   []
 
    You can add more global variables as it.
 
 +---------
-
-    SystemStreamLog systemStreamLog = new SystemStreamLog();
-
-    ScriptRunner scriptRunner = new ScriptRunner( systemStreamLog );
+    ScriptRunner scriptRunner = new ScriptRunner();
     scriptRunner.setGlobalVariable( name, value );
-
 +---------
 
 ** Build context
 
-  You can pass some values to your script using a execution context which have the type <<<Map<String, ? extends Object> context>>>.
+  You can pass some values to your script using an execution context which have the type <<<Map<String, ? extends Object> context>>>:
 
 +---------
+private Map<String, Object> buildContext()
+{
     Map<String, Object> context = new HashMap<String, Object>();
     context.put( "foo", "bar" );
     return context;
+}
++---------
 
+  Then values are available in scripts context:
+
++---------
     // in your bsh script
     String value = context.get( "foo" );
++---------
+
     value will be "bar"
 
-    // in your groovy script
++---------
+    // in your Groovy script
     context.get("foo")
 +---------
 
@@ -123,12 +163,10 @@ ${project.name}
   You can add some additional classpath entries for your script execution
 
 +---------
-    SystemStreamLog systemStreamLog = new SystemStreamLog();
 
     List<String> classpathEntries = list of jar paths
-    ScriptRunner scriptRunner = new ScriptRunner( systemStreamLog );
+    ScriptRunner scriptRunner = new ScriptRunner();
     scriptRunner.setClassPath( classpathEntries );
     scriptRunner.run( "test", new File( "src/test/resources/bsh-test" ), "verify", buildContext(),
-                      new FileLogger( logFile ), "foo", true );
+                      new FileLogger( logFile ) );
 +---------
-

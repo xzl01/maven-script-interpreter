@@ -1,4 +1,3 @@
-version=3
-opts="uversionmangle=s/-(alpha|beta|rc)(-)?/~$1$2/" \
-  http://svn.apache.org/repos/asf/maven/shared/tags/ \
-  maven-script-interpreter-(\d.*)/ debian debian/orig-tar.sh
+version=4
+opts="mode=git" \
+https://github.com/apache/maven-script-interpreter refs/tags/maven-script-interpreter-([\d.]+)

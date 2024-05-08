@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,22 +17,4 @@
  * under the License.
  */
 
-if ( !( basedir instanceof File ) )
-{
-    println "Global script variable not defined: basedir or not a File"
-    throw new RuntimeException("Global script variable not defined: basedir or not a File");
-}
-def verify = new File( basedir, "verify.groovy" )
-assert (verify.exists())
-
-if ( !( context instanceof Map ) )
-{
-    println "Global script variable not defined: context or not a Map"
-    throw new RuntimeException("Global script variable not defined: context or not a Map");
-}
-
-System.out.println("foo="+context.get("foo"));
-
-if (binding.variables.containsKey("globalVar")) System.out.println("globalVar="+globalVar);
-
-return true
+asfMavenTlpStdBuild(jdks:[ "8", "11", "17", "19"])

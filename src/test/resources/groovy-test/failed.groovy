@@ -17,22 +17,9 @@
  * under the License.
  */
 
-if ( !( basedir instanceof File ) )
-{
-    println "Global script variable not defined: basedir or not a File"
-    throw new RuntimeException("Global script variable not defined: basedir or not a File");
-}
-def verify = new File( basedir, "verify.groovy" )
-assert (verify.exists())
 
-if ( !( context instanceof Map ) )
-{
-    println "Global script variable not defined: context or not a Map"
-    throw new RuntimeException("Global script variable not defined: context or not a Map");
-}
+def message = 'no Te Message'
 
-System.out.println("foo="+context.get("foo"));
-
-if (binding.variables.containsKey("globalVar")) System.out.println("globalVar="+globalVar);
+assert message.contains('Test Message')
 
 return true
